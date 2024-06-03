@@ -76,5 +76,80 @@ void loop() {
     }
   }
 
+
+
+
+
+
+
+
+  #include <ArduinoBLE.h>
+
+BLEService sensorService("180C"); // Custom service
+
+// BLE Characteristics
+BLEStringCharacteristic sensorDataCharacteristic("2A56", BLERead | BLENotify, 32);
+
+void setup() {
+  Serial.begin(9600);
+  while (!Serial);
+
+  // Initialize BLE
+  if (!BLE.begin()) {
+    Serial.println("starting BLE failed!");
+    while (1);
+  }
+
+  // Start scanning for BLE peripherals
+  BLE.scan();
+
+  Serial.println("BLE Central - scanning for peripherals...");
+}
+
+void loop() {
+  // Check if a peripheral has been discovered
+  BLEDevice peripheral = BLE.available();
+
+  if (peripheral) {
+    // Found a peripheral, connect to it
+    if (peripheral.localName() == "Nano33BLE_Sense") {
+      BLE.stopScan();
+
+      Serial.println("Connecting ...");
+      if (peripheral.connect()) {
+        Serial.println("Connected to peripheral");
+      } else {
+        Serial.println("Failed to connect!");
+        BLE.scan();
+        return;
+      }
+
+      // Discover the service
+      if (peripheral.discoverService(sensorService)) {
+        Serial.println("Service discovered");
+
+        // Discover the characteristic
+        if (peripheral.discoverCharacteristic(sensorDataCharacteristic)) {
+          Serial.println("Characteristic discovered");
+          sensorDataCharacteristic.subscribe();
+        }
+      }
+    }
+  }
+
+  // Check if we are connected to a peripheral
+  if (peripheral && peripheral.connected()) {
+    // Check if new sensor data is available
+    if (sensorDataCharacteristic.valueUpdated()) {
+      String sensorData = sensorDataCharacteristic.value();
+      Serial.print("Received sensor data: ");
+      Serial.println(sensorData);
+    }
+  } else {
+    BLE.scan();
+  }
+}
+
+
   delay(1000);
 }
