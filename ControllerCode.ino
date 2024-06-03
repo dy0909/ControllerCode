@@ -153,3 +153,90 @@ void loop() {
 
   delay(1000);
 }
+
+
+
+
+
+
+
+
+#include <ArduinoBLE.h>
+
+#define MAX_DEVICES 5
+
+BLEDevice peripherals[MAX_DEVICES];
+BLEService sensorService("180C"); // Custom service
+
+// BLE Characteristics
+BLEStringCharacteristic sensorDataCharacteristics[MAX_DEVICES] = {
+  BLEStringCharacteristic("2A56", BLERead | BLENotify, 32),
+  BLEStringCharacteristic("2A56", BLERead | BLENotify, 32),
+  BLEStringCharacteristic("2A56", BLERead | BLENotify, 32),
+  BLEStringCharacteristic("2A56", BLERead | BLENotify, 32),
+  BLEStringCharacteristic("2A56", BLERead | BLENotify, 32)
+};
+
+void setup() {
+  Serial.begin(9600);
+  while (!Serial);
+
+  // Initialize BLE
+  if (!BLE.begin()) {
+    Serial.println("starting BLE failed!");
+    while (1);
+  }
+
+  // Start scanning for BLE peripherals
+  BLE.scan();
+
+  Serial.println("BLE Central - scanning for peripherals...");
+}
+
+void loop() {
+  // Check if a peripheral has been discovered
+  BLEDevice peripheral = BLE.available();
+
+  if (peripheral) {
+    for (int i = 0; i < MAX_DEVICES; i++) {
+      if (!peripherals[i] && peripheral.localName() == "Nano33BLE_Sense") {
+        peripherals[i] = peripheral;
+
+        BLE.stopScan();
+
+        Serial.print("Connecting to ");
+        Serial.println(peripheral.address());
+
+        if (peripherals[i].connect()) {
+          Serial.println("Connected to peripheral");
+          if (peripherals[i].discoverService(sensorService)) {
+            Serial.println("Service discovered");
+            if (peripherals[i].discoverCharacteristic(sensorDataCharacteristics[i])) {
+              Serial.println("Characteristic discovered");
+              sensorDataCharacteristics[i].subscribe();
+            }
+          }
+        } else {
+          Serial.println("Failed to connect!");
+        }
+
+        BLE.scan();
+        break;
+      }
+    }
+  }
+
+  // Check if we are connected to any peripherals
+  for (int i = 0; i < MAX_DEVICES; i++) {
+    if (peripherals[i] && peripherals[i].connected()) {
+      // Check if new sensor data is available
+      if (sensorDataCharacteristics[i].valueUpdated()) {
+        String sensorData = sensorDataCharacteristics[i].value();
+        Serial.print("Received data from ");
+        Serial.print(peripherals[i].address());
+        Serial.print(": ");
+        Serial.println(sensorData);
+      }
+    }
+  }
+}
